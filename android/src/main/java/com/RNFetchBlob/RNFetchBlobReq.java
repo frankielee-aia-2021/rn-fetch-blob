@@ -565,7 +565,7 @@ public class RNFetchBlobReq extends BroadcastReceiver implements Runnable {
                         // This usually mean the data is contains invalid unicode characters but still valid data,
                         // it's binary data, so send it as a normal string
                         catch(CharacterCodingException ignored) {
-                            
+
                             if(responseFormat == ResponseFormat.UTF8) {
                                 String utf8 = new String(b);
                                 callback.invoke(null, RNFetchBlobConst.RNFB_RESPONSE_UTF8, utf8);
@@ -766,16 +766,21 @@ public class RNFetchBlobReq extends BroadcastReceiver implements Runnable {
                             return;
                         }
                         String contentUri = c.getString(c.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI));
-                        if ( contentUri != null &&
-                                options.addAndroidDownloads.hasKey("mime") &&
-                                options.addAndroidDownloads.getString("mime").contains("image")) {
-                            Uri uri = Uri.parse(contentUri);
-                            Cursor cursor = appCtx.getContentResolver().query(uri, new String[]{android.provider.MediaStore.Images.ImageColumns.DATA}, null, null, null);
-                            // use default destination of DownloadManager
-                            if (cursor != null) {
-                                cursor.moveToFirst();
-                                filePath = cursor.getString(0);
-                                cursor.close();
+                        if ( contentUri != null) {
+                            if(options.addAndroidDownloads.hasKey("mime") && options.addAndroidDownloads.getString("mime").contains("image")){
+                                Uri uri = Uri.parse(contentUri);
+                                Cursor cursor = appCtx.getContentResolver().query(uri, new String[]{android.provider.MediaStore.Images.ImageColumns.DATA}, null, null, null);
+                                // use default destination of DownloadManager
+                                if (cursor != null) {
+                                    cursor.moveToFirst();
+                                    filePath = cursor.getString(0);
+                                    cursor.close();
+                                }
+                            } else{
+                                File file = new File(Uri.parse(contentUri).getPath());
+                                if(file.exists()){
+                                    filePath = file.getAbsolutePath();
+                                }
                             }
                         }
                     }
@@ -797,14 +802,21 @@ public class RNFetchBlobReq extends BroadcastReceiver implements Runnable {
 
                     } catch(Exception ex) {
                         ex.printStackTrace();
-                        this.callback.invoke(ex.getLocalizedMessage(), null);
+                        // Prevent to invoke the callback again after it throws the exception of the illegal callback invocation
+                        if(!(ex instanceof RuntimeException)){
+                            this.callback.invoke(ex.getLocalizedMessage(), null);
+                        }
                     }
                 }
                 else {
-                    if(filePath == null)
-                        this.callback.invoke("Download manager could not resolve downloaded file path.", RNFetchBlobConst.RNFB_RESPONSE_PATH, null);
-                    else
-                        this.callback.invoke(null, RNFetchBlobConst.RNFB_RESPONSE_PATH, filePath);
+                    try {
+                        if(filePath == null)
+                            this.callback.invoke("Download manager could not resolve downloaded file path.", RNFetchBlobConst.RNFB_RESPONSE_PATH, null);
+                        else
+                            this.callback.invoke(null, RNFetchBlobConst.RNFB_RESPONSE_PATH, filePath);
+                    } catch(Exception ex) {
+                        ex.printStackTrace();
+                    }
                 }
 
             }
